@@ -1,0 +1,321 @@
+---
+title: "Symptom Prediction in Schizophrenia"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Predict Depression Levels
+
+### Load and format data
+```{r}
+szdat <- read.csv("feature_matrix_anomalies_trunc3.csv")
+
+# create vector of outcome variable (depression)
+Y <- szdat$Depression
+# create matrix of predictors (15 mobility measures)
+X <- szdat[,9:23]
+
+# remove observations with NA's
+rmX <- which(apply(X,1,function(yy) length(which(is.na(yy)))>0))
+rmY <- which(is.na(Y))
+rmXY <- unique(c(rmX,rmY))
+lab <- szdat[-rmXY,1]
+Y <- Y[-rmXY]
+X <- scale(X[-rmXY,])   # scale predictors
+```
+
+### Split data into training and testing  
+The last observation per subject is withheld from training and used for calculating mean squared prediction error (MSPE).
+```{r}
+# m: number of subjects
+m <- length(unique(lab))
+
+# n: number of observations per subject
+n <- sapply(1:m, function(i) length(which(lab==unique(lab)[i])))
+
+# get index of last observation for each subject
+last.obs <- sapply(1:length(n), function(i) sum(n[1:i]))
+
+# training data
+Y.train <- Y[-last.obs]
+X.train <- X[-last.obs,]
+lab.train <- lab[-last.obs]
+
+# testing data (last observation per subject)
+Y.test <- Y[last.obs]
+X.test <- X[last.obs,]
+lab.test <- lab[last.obs]
+
+# set up predictor matrix for maity-pal method
+subject.indicator <- matrix(rep(0, m*sum(n)), nrow = sum(n), ncol = m)
+for (i in 1:m) {
+  subject.indicator[(sum(n[0:(i-1)])+1):(sum(n[1:i])),i] <- rep(1, n[i])
+}
+X.mp <- cbind(X, subject.indicator)
+X.mp.train <- X.mp[-last.obs,]
+X.mp.test <- X.mp[last.obs,]
+```
+
+### Run four models  
+MSPE is averaged across 5 models fitted with different starting weights and biases for GNMM, ANN, and MP. Due to the larger network size in the MP model, training is done with a large penalty term that decreases every 10 epochs.
+```{r}
+# source functions for models
+source('Network_Functions.R')
+
+# network settings
+nepochs <- 50
+hidnodes <- 3
+
+# run GNMM
+set.seed(12044)
+mspe.gnmm <- rep(NA,5)
+for (i in 1:5) {
+  m1 <- gnmm.sgd(formula = Y.train ~ X.train + (1|lab.train), family = 'gaussian', penalization = 0.001,
+                  nodes = hidnodes, tolerance = 10^-8, step_size = 0.005, act_fun = 'relu', nepochs = nepochs, incl_ranef = TRUE)
+  pred1 <- gnmm.predict(new_data = X.test, id = lab.test, gnmm.fit = m1)
+  mspe.gnmm[i] <- mean((Y.test-pred1)^2)
+}
+
+# run ANN
+set.seed(12045)
+mspe.ann <- rep(NA, 5)
+for (i in 1:5) {
+  m2 <- gnmm.sgd(formula = Y.train ~ X.train + (1|lab.train), family = 'gaussian', penalization = 0.001,
+                  nodes = hidnodes, tolerance = 10^-8, step_size = 0.005, act_fun = 'relu', nepochs = nepochs, incl_ranef = FALSE)
+  pred2 <- gnmm.predict(new_data = X.test, id = lab.test, gnmm.fit = m2)
+  mspe.ann[i] <- mean((Y.test-pred2)^2)
+}
+
+# run GLMM
+p <- ncol(X.train)
+glmm.out <- glmer(Y.train ~ X.train + (1|lab.train), family = 'gaussian')
+s1 <- summary(glmm.out)
+glmm.coef <- matrix(s1$coefficients[2:(p+1),1])
+fef.pred <- X.test%*%glmm.coef + rep(matrix(s1$coefficients[1,1]),m)     ## fixed effect prediction
+glm.ref <- as.vector(c(ranef(glmm.out)$lab.train))
+glm.ref <- unlist(unname(glm.ref))
+pred3 <- fef.pred + glm.ref             ## fixed effect + random effect prediction
+
+# run MP
+# 4th iteration does not converge so model is run 6 times and 4th run is dropped
+set.seed(12047)
+mspe.mp <- rep(NA, 6)
+for (i in 1:6) {
+  m4 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 1,
+                 nodes = hidnodes, tolerance = 10^-8, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE)
+  m4 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 0.75025,
+                 nodes = hidnodes, tolerance = 10^-8, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE,
+                 weights = m4$weights, biases = m4$biases)
+  m4 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 0.50050,
+                 nodes = hidnodes, tolerance = 10^-8, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE,
+                 weights = m4$weights, biases = m4$biases)
+  m4 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 0.25075,
+                 nodes = hidnodes, tolerance = 10^-8, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE,
+                 weights = m4$weights, biases = m4$biases)
+  m4 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 0.001,
+                 nodes = hidnodes, tolerance = 10^-8, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE,
+                 weights = m4$weights, biases = m4$biases)
+  pred4 <- gnmm.predict(new_data = X.mp.test, id = lab.test, gnmm.fit = m4)
+  mspe.mp[i] <- mean((Y.test-pred4)^2) 
+}
+```
+
+### Compare MSPE from 4 models  
+```{r}
+# GNMM
+mean(mspe.gnmm)    # 0.428   
+
+# ANN
+mean(mspe.ann)     # 1.076
+ 
+# GLMM
+mean((Y.test-pred3)^2)    # 0.546
+
+# MP
+mean(mspe.mp, na.rm = TRUE)   # 1.218
+```
+
+
+## Predict Anxiety Levels
+
+### Load and format data
+```{r}
+szdat <- read.csv("feature_matrix_anomalies_trunc3.csv")
+
+# create vector of outcome variable (anxiety)
+Y <- szdat$Anxiety
+# create matrix of predictors (15 mobility measures)
+X <- szdat[,9:23]
+
+# remove observations with NA's
+rmX <- which(apply(X,1,function(yy) length(which(is.na(yy)))>0))
+rmY <- which(is.na(Y))
+rmXY <- unique(c(rmX,rmY))
+lab <- szdat[-rmXY,1]
+Y <- Y[-rmXY]
+X <- scale(X[-rmXY,])   # scale predictors
+```
+
+### Split data into training and testing  
+The last observation per subject is withheld from training and used for calculating mean squared prediction error (MSPE).
+```{r}
+# m: number of subjects
+m <- length(unique(lab))
+
+# n: number of observations per subject
+n <- sapply(1:m, function(i) length(which(lab==unique(lab)[i])))
+
+# get index of last observation for each subject
+last.obs <- sapply(1:length(n), function(i) sum(n[1:i]))
+
+# training data
+Y.train <- Y[-last.obs]
+X.train <- X[-last.obs,]
+lab.train <- lab[-last.obs]
+
+# testing data (last observation per subject)
+Y.test <- Y[last.obs]
+X.test <- X[last.obs,]
+lab.test <- lab[last.obs]
+
+# set up predictor matrix for maity-pal method
+subject.indicator <- matrix(rep(0, m*sum(n)), nrow = sum(n), ncol = m)
+for (i in 1:m) {
+  subject.indicator[(sum(n[0:(i-1)])+1):(sum(n[1:i])),i] <- rep(1, n[i])
+}
+X.mp <- cbind(X, subject.indicator)
+X.mp.train <- X.mp[-last.obs,]
+X.mp.test <- X.mp[last.obs,]
+```
+
+### Run four models  
+MSPE is averaged across 5 models fitted with different starting weights and biases for GNMM, ANN, and MP. Due to the larger network size in the MP model, training is done with a large penalty term that decreases every 10 epochs.
+```{r}
+# source functions for models
+source('Network_Functions.R')
+
+# network settings
+nepochs <- 50
+hidnodes <- 3
+
+# Run GNMM
+# 1st and 6th iterations do not converge so model is run 7 times and 2 runs are dropped
+set.seed(12046)
+mspe.gnmm <- rep(NA,7)
+for (i in 1:7) {
+  m1 <- gnmm.sgd(formula = Y.train ~ X.train + (1|lab.train), family = 'gaussian', penalization = 0.001,
+                  nodes = hidnodes, tolerance = 10^-8, step_size = 0.01, act_fun = 'relu',nepochs = nepochs, incl_ranef = TRUE)
+  pred1 <- gnmm.predict(new_data = X.test, id = lab.test, gnmm.fit = m1)
+  mspe.gnmm[i] <- mean((Y.test-pred1)^2)
+}
+
+# Run ANN
+set.seed(12046)
+mspe.ann <- rep(NA, 5)
+for (i in 1:5) {
+  m2 <- gnmm.sgd(formula = Y.train ~ X.train + (1|lab.train), family = 'gaussian', penalization = 0.001,
+                  nodes = hidnodes, tolerance = 10^-8, step_size = 0.005, act_fun = 'relu', nepochs = nepochs, incl_ranef = FALSE)
+  pred2 <- gnmm.predict(new_data = X.test, id = lab.test, gnmm.fit = m2)
+  mspe.ann[i] <- mean((Y.test-pred2)^2)
+}
+
+# Run GLMM
+p <- ncol(X.train)
+glmm.out <- glmer(Y.train ~ X.train + (1|lab.train), family = 'gaussian')
+s1 <- summary(glmm.out)
+glmm.coef <- matrix(s1$coefficients[2:(p+1),1])
+fef.pred <- X.test%*%glmm.coef + rep(matrix(s1$coefficients[1,1]),m)     ## fixed effect prediction
+glm.ref <- as.vector(c(ranef(glmm.out)$lab.train))
+glm.ref <- unlist(unname(glm.ref))
+pred3 <- fef.pred + glm.ref             ## fixed effect + random effect prediction
+
+# Run MP
+# 4th iteration does not converge so model is run 6 times and 4th run is dropped
+set.seed(12047)
+mspe.mp <- rep(NA, 6)
+for(i in 1:6) {
+  m4 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 1,
+                 nodes = hidnodes, tolerance = 10^-8, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE)
+  m4 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 0.75025,
+                 nodes = hidnodes, tolerance = 10^-8, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE,
+                 weights = m4$weights, biases = m4$biases)
+  m4 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = .50050,
+                 nodes = hidnodes, tolerance = 10^-8, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE,
+                 weights = m4$weights, biases = m4$biases)
+  m4 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 0.25075,
+                 nodes = hidnodes, tolerance = 10^-8, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE,
+                 weights = m4$weights, biases = m4$biases)
+  m4 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 0.001,
+                 nodes = hidnodes, tolerance = 10^-8, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE,
+                 weights = m4$weights, biases = m4$biases)
+  pred4 <- gnmm.predict(new_data = X.mp.test, id = lab.test, gnmm.fit = m4)
+  mspe.mp[i] <- mean((Y.test-pred4)^2)
+}
+```
+
+### Compare MSPE from 4 models  
+```{r}
+# GNMM
+mean(mspe.gnmm, na.rm = TRUE)    # 0.062   
+
+# ANN
+mean(mspe.ann)      # 0.542
+
+# GLMM
+mean((Y.test-pred3)^2)    # 0.068
+
+# MP
+mean(mspe.mp, na.rm=TRUE)    # 0.518
+```
+
+
+### Significant Location Entropy Plot
+```{r}
+# load data
+szdat <- read.csv("feature_matrix_anomalies_trunc3.csv")
+
+# create vector of outcome variable (anxiety)
+Y <- szdat$Anxiety
+# create matrix of predictors (15 mobility measures)
+X <- szdat[,9:23]
+
+# remove observations with NA's
+rmX <- which(apply(X,1,function(yy) length(which(is.na(yy)))>0))
+rmY <- which(is.na(Y))
+rmXY <- unique(c(rmX,rmY))
+lab <- szdat[-rmXY,1]
+Y <- Y[-rmXY]
+X <- X[-rmXY,]
+
+# m: number of subjects
+m <- length(unique(lab))
+
+# n: number of observations per subject
+n <- sapply(1:m, function(i) length(which(lab==unique(lab)[i])))
+
+# get index of last observation for each subject
+last.obs <- sapply(1:length(n), function(i) sum(n[1:i]))
+
+# set up ordinal anxiety vector
+med.anx <- c(median(Y[1:last.obs[1]]), sapply(2:m, function(i) median(Y[(last.obs[i-1]+1):(last.obs[i])])))
+med.anx.expanded <- rep(med.anx, times=n)
+ord.anxiety <- rep(NA, length(Y))
+for (j in 1:length(Y)) {
+  if(Y[j]==med.anx.expanded[j]){
+    ord.anxiety[j] <- 0
+  } else if (Y[j]>med.anx.expanded[j]){
+    ord.anxiety[j] <- 1
+  } else if (Y[j]<med.anx.expanded[j]){
+    ord.anxiety[j] <- -1
+  }
+}
+
+# plot
+p1 <- ggplot(NULL, aes(x = X[,12], y = ord.anxiety)) + geom_point(alpha = 0.15) + xlim(0,0.75) + 
+  geom_smooth(method = 'loess', color = 'red', alpha = 0.4, size= 1.5) + ylab('Scaled Anxiety') +
+  xlab('Significant Location Entropy') + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA))
+p1
+```
