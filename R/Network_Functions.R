@@ -1,7 +1,7 @@
 require(lme4)
 
 
-### if sigmoid package not installed, the following functions are from it:
+#### if sigmoid package not installed, the following functions are from it: ####
 relu = function (x){
   ifelse(x >= 0, x, 0)
 } 
@@ -42,7 +42,7 @@ sigmoid=function (x, method = c("logistic", "Gompertz", "tanh", "ReLU",
     return(leakyrelu(x))
   }
 }
-############### end of sigmoid functions
+#### end of sigmoid functions ####
 
 
 
@@ -93,56 +93,10 @@ g1.prime <- function(d, type){
 }
 
 
-
 #### Derivatives ####
-
-# Layer 0
-weight0 <- function(theta, j, y, x, mu, a, var.fun, type, z, family, phi, m, n, lambda, b.vec){
-  sumw0 <- vector(length = sum(n))
-  for (i in 1:(sum(n))) {
-    sumw0[i] <- ((y[i]-mu[i])/(a[i]*var.fun(mu[i], family = family)))*g0.prime(theta[[1]][[1]]%*%g1(theta[[1]][[2]]%*%x[i,] + 
-                                                                                                      theta[[2]][[2]], type = type) + 
-                                                                                 theta[[2]][[1]] + t(z[i,])%*%b.vec, family = family)*g1(theta[[1]][[2]][j,]%*%x[i,] + 
-                                                                                                                                           theta[[2]][[2]][j], type = type)
-  }
-  full.sum <- sum(sumw0)
-  (1/phi)*(1/(sum(n)))*full.sum - 2*lambda*theta[[1]][[3]][j]
-}
-
-bias0 <- function(theta, y, x, mu, a, var.fun, type, z, family, phi, m, n, lambda, b.vec){
-  sumb0 <- vector(length = sum(n))
-  for (i in 1:(sum(n))) {
-    sumb0[i] <- ((y[i]-mu[i])/(a[i]*var.fun(mu[i], family = family)))*g0.prime(theta[[1]][[1]]%*%g1(theta[[1]][[2]]%*%x[i,] + theta[[2]][[2]], type = type) + 
-                                                                                 theta[[2]][[1]] + t(z[i,])%*%b.vec, family = family)
-  }
-  full.sum <- sum(sumb0)
-  (1/phi)*(1/(sum(n)))*full.sum - (2*lambda*theta[[2]][[3]][1])
-}
-
-# Layer 1
-weight1 <- function(theta, j, k, y, x, mu, a, var.fun, type, z, family, phi, m, n, lambda, k1, b.vec){
-  sumw1 <- vector(length = sum(n))
-  for (i in 1:(sum(n))) {
-    sumw1[i] <- ((y[i]-mu[i])/(a[i]*var.fun(mu[i], family = family)))*g0.prime(theta[[1]][[1]]%*%g1(theta[[1]][[2]]%*%x[i,] + theta[[2]][[2]], type = type) + 
-                                                                                 theta[[2]][[1]] + t(z[i,])%*%b.vec, family = family)*theta[[1]][[1]][k]*g1.prime(theta[[1]][[2]][k,]%*%x[i,] + theta[[2]][[2]][k,], type = type)*x[i,j]
-  }
-  full.sum <- sum(sumw1)
-  (1/phi)*(1/(sum(n)))*full.sum - (2*lambda*theta[[1]][[3]][j*k1+k])
-}
-
-bias1 <- function(theta, k, y, x, mu, a, var.fun, type, z, family, phi, m, n, lambda, b.vec){
-  sumb1 <- vector(length = sum(n))
-  for (i in 1:(sum(n))) {
-    sumb1[i] <- ((y[i]-mu[i])/(a[i]*var.fun(mu[i], family = family)))*g0.prime(theta[[1]][[1]]%*%g1(theta[[1]][[2]]%*%x[i,] + theta[[2]][[2]], type = type) + theta[[2]][[1]] + 
-                                                                                 t(z[i,])%*%b.vec, family = family)*theta[[1]][[1]][k]*g1.prime(theta[[1]][[2]][k,]%*%x[i,] + 
-                                                                                                                                                  theta[[2]][[2]][k,], type = type)
-  }
-  full.sum <- sum(sumb1)
-  (1/phi)*(1/(sum(n)))*full.sum - (2*lambda*theta[[2]][[3]][k+1])
-}
-
+## 1-layer network ##
 # Layer 0 - stochastic
-weight0sgd <- function(obs,theta, j, y, x, mu, a, var.fun, type, z, family, phi, m, n, lambda, b.vec){
+weight0sgd <- function(obs, theta, j, y, x, mu, a, var.fun, type, z, family, phi, m, n, lambda, b.vec){
   w0 <- ((y[obs]-mu[obs])/(a[obs]*var.fun(mu[obs], family = family)))*g0.prime(theta[[1]][[1]]%*%g1(theta[[1]][[2]]%*%x[obs,] + 
                                                                                                       theta[[2]][[2]], type = type) + 
                                                                                  theta[[2]][[1]] + t(z[obs,])%*%b.vec, family = family)*g1(theta[[1]][[2]][j,]%*%x[obs,] + 
@@ -150,20 +104,20 @@ weight0sgd <- function(obs,theta, j, y, x, mu, a, var.fun, type, z, family, phi,
   (1/phi)*w0 - 2*lambda*theta[[1]][[1]][1,j]
 }
 
-bias0sgd <- function(obs,theta, y, x, mu, a, var.fun, type, z, family, phi, m, n, lambda, b.vec){
+bias0sgd <- function(obs, theta, y, x, mu, a, var.fun, type, z, family, phi, m, n, lambda, b.vec){
   b0 <- ((y[obs]-mu[obs])/(a[obs]*var.fun(mu[obs], family = family)))*g0.prime(theta[[1]][[1]]%*%g1(theta[[1]][[2]]%*%x[obs,] + theta[[2]][[2]], type = type) + 
                                                                                  theta[[2]][[1]] + t(z[obs,])%*%b.vec, family = family)
   (1/phi)*b0 - (2*lambda*theta[[2]][[1]][1,1])
 }
 
 # Layer 1 - stochastic
-weight1sgd <- function(obs,theta, j, k, y, x, mu, a, var.fun, type, z, family, phi, m, n, lambda, k1, b.vec){
+weight1sgd <- function(obs, theta, j, k, y, x, mu, a, var.fun, type, z, family, phi, m, n, lambda, k1, b.vec){
   w1 <- ((y[obs]-mu[obs])/(a[obs]*var.fun(mu[obs], family = family)))*g0.prime(theta[[1]][[1]]%*%g1(theta[[1]][[2]]%*%x[obs,] + theta[[2]][[2]], type = type) + 
                                                                                  theta[[2]][[1]] + t(z[obs,])%*%b.vec, family = family)*theta[[1]][[1]][k]*g1.prime(theta[[1]][[2]][k,]%*%x[obs,] + theta[[2]][[2]][k,], type = type)*x[obs,j]
   (1/phi)*w1 - (2*lambda*theta[[1]][[2]][k,j])
 }
 
-bias1sgd <- function(obs,theta, k, y, x, mu, a, var.fun, type, z, family, phi, m, n, lambda, b.vec){
+bias1sgd <- function(obs, theta, k, y, x, mu, a, var.fun, type, z, family, phi, m, n, lambda, b.vec){
   b1 <- ((y[obs]-mu[obs])/(a[obs]*var.fun(mu[obs], family = family)))*g0.prime(theta[[1]][[1]]%*%g1(theta[[1]][[2]]%*%x[obs,] + theta[[2]][[2]], type = type) + theta[[2]][[1]] + 
                                                                                  t(z[obs,])%*%b.vec, family = family)*theta[[1]][[1]][k]*g1.prime(theta[[1]][[2]][k,]%*%x[obs,] + 
                                                                                                                                                     theta[[2]][[2]][k,], type = type)
@@ -173,13 +127,79 @@ bias1sgd <- function(obs,theta, k, y, x, mu, a, var.fun, type, z, family, phi, m
 
 # kappa
 k.prime <- function(theta, y, x, mu, a, var.fun, type, z, family, phi, m, n, D){
-
   kp.matrix <- matrix(nrow = m, ncol = sum(n))
   for(i in 1:(sum(n))){
     kp.matrix[,i] <- ((y[i] - mu[i])*g0.prime(theta[[1]][[1]]%*%g1(theta[[1]][[2]]%*%x[i,] + theta[[2]][[2]], type = type)
                                               + theta[[2]][[1]] + t(z[i,])%*%theta[[3]], family = family)%*%z[i,])/(phi*a[i]*var.fun(mu[i], family = family))
   }
+  kp.vector <- vector(length = m)
+  for(j in 1:m){
+    kp.vector[j] <- sum(kp.matrix[j,])
+  }
+  -kp.vector + theta[[3]]/D
+}
 
+
+## 2-layer network ##
+# Layer 0 - stochastic
+weight0sgd_2l <- function(obs, theta, j, y, x, mu, a, var.fun, type, z, family, phi, m, n, lambda, b.vec){
+  w0 <- ((y[obs]-mu[obs])/(a[obs]*var.fun(mu[obs], family = family)))*
+    g0.prime(theta[[1]][[1]]%*%g1(theta[[1]][[2]]%*%g1(theta[[1]][[3]]%*%x[obs,] + theta[[2]][[3]], type = type) + theta[[2]][[2]], type = type) + 
+               theta[[2]][[1]] + t(z[obs,])%*%b.vec, family = family)*g1(theta[[1]][[2]][j,]%*%g1(theta[[1]][[3]]%*%x[obs,] + theta[[2]][[3]], type = type) +
+                                                                           theta[[2]][[2]][j], type = type)
+  (1/phi)*w0 - 2*lambda*theta[[1]][[1]][1,j]
+}
+
+bias0sgd_2l <- function(obs, theta, y, x, mu, a, var.fun, type, z, family, phi, m, n, lambda, b.vec){
+  b0 <- ((y[obs]-mu[obs])/(a[obs]*var.fun(mu[obs], family = family)))*
+    g0.prime(theta[[1]][[1]]%*%g1(theta[[1]][[2]]%*%g1(theta[[1]][[3]]%*%x[obs,] + theta[[2]][[3]], type = type) + theta[[2]][[2]], type = type) +
+               theta[[2]][[1]] + t(z[obs,])%*%b.vec, family = family)
+  (1/phi)*b0 - (2*lambda*theta[[2]][[1]][1,1])
+}
+
+# Layer 1 - stochastic
+weight1sgd_2l <- function(obs, theta, j, k, y, x, mu, a, var.fun, type, z, family, phi, m, n, lambda, b.vec){
+  w1 <- ((y[obs]-mu[obs])/(a[obs]*var.fun(mu[obs], family = family)))*
+    g0.prime(theta[[1]][[1]]%*%g1(theta[[1]][[2]]%*%g1(theta[[1]][[3]]%*%x[obs,] + theta[[2]][[3]], type = type) + theta[[2]][[2]], type = type) +
+               theta[[2]][[1]] + t(z[obs,])%*%b.vec, family = family)*theta[[1]][[1]][k]*g1.prime(theta[[1]][[2]][k,]%*%g1(theta[[1]][[3]]%*%x[obs,] + theta[[2]][[3]], type = type) +
+                                                                                                    theta[[2]][[2]][k], type = type)*g1(theta[[1]][[3]]%*%x[obs,] + theta[[2]][[3]], type = type)[j]
+  (1/phi)*w1 - (2*lambda*theta[[1]][[2]][k,j])
+}
+
+bias1sgd_2l <- function(obs, theta, k, y, x, mu, a, var.fun, type, z, family, phi, m, n, lambda, b.vec){
+  b1 <- ((y[obs]-mu[obs])/(a[obs]*var.fun(mu[obs], family = family)))*
+    g0.prime(theta[[1]][[1]]%*%g1(theta[[1]][[2]]%*%g1(theta[[1]][[3]]%*%x[obs,] + theta[[2]][[3]], type = type) + theta[[2]][[2]], type = type) + 
+               theta[[2]][[1]] + t(z[obs,])%*%b.vec, family = family)*theta[[1]][[1]][k]*g1.prime(theta[[1]][[2]][k,]%*%g1(theta[[1]][[3]]%*%x[obs,] + theta[[2]][[3]], type = type) +
+                                                                                                    theta[[2]][[2]][k,], type = type)
+  (1/phi)*b1 - (2*lambda*theta[[2]][[2]][k,1])
+}
+
+# Layer 2 - stochastic
+weight2sgd_2l <- function(obs, theta, j, k, y, x, mu, a, var.fun, type, z, family, phi, m, n, lambda, b.vec){
+  w2 <- ((y[obs]-mu[obs])/(a[obs]*var.fun(mu[obs], family = family)))*
+    g0.prime(theta[[1]][[1]]%*%g1(theta[[1]][[2]]%*%g1(theta[[1]][[3]]%*%x[obs,] + theta[[2]][[3]], type = type) + theta[[2]][[2]], type = type) +
+               theta[[2]][[1]] + t(z[obs,])%*%b.vec, family = family)*(theta[[1]][[1]]%*% (g1.prime(theta[[1]][[2]]%*%g1(theta[[1]][[3]]%*%x[obs,] + theta[[2]][[3]], type = type) + 
+                                                                                                      theta[[2]][[2]], type = type) * theta[[1]][[2]][,k]))*g1.prime(theta[[1]][[3]][k,]%*%x[obs,] + theta[[2]][[3]][k], type = type)*x[obs,j]
+  
+  (1/phi)*w2 - (2*lambda*theta[[1]][[3]][k,j])
+}
+
+bias2sgd_2l <- function(obs, theta, k, y, x, mu, a, var.fun, type, z, family, phi, m, n, lambda, b.vec){
+  b2 <- ((y[obs]-mu[obs])/(a[obs]*var.fun(mu[obs], family = family)))*
+    g0.prime(theta[[1]][[1]]%*%g1(theta[[1]][[2]]%*%g1(theta[[1]][[3]]%*%x[obs,] + theta[[2]][[3]], type = type) + theta[[2]][[2]], type = type) +
+               theta[[2]][[1]] + t(z[obs,])%*%b.vec, family = family)*(theta[[1]][[1]]%*% (g1.prime(theta[[1]][[2]]%*%g1(theta[[1]][[3]]%*%x[obs,] + theta[[2]][[3]], type = type) + 
+                                                                                                      theta[[2]][[2]], type = type) * theta[[1]][[2]][,k]))*g1.prime(theta[[1]][[3]][k,]%*%x[obs,] + theta[[2]][[3]][k], type = type)
+  
+  (1/phi)*b2 - (2*lambda*theta[[2]][[3]][k,1])
+}
+
+# kappa
+k.prime_2l <- function(theta, y, x, mu, a, var.fun, type, z, family, phi, m, n, D){
+  kp.matrix <- matrix(nrow = m, ncol = sum(n))
+  for(i in 1:(sum(n))){
+    kp.matrix[,i] <- ((y[i] - mu[i])*g0.prime(theta[[1]][[1]]%*%g1(theta[[1]][[2]]%*%g1(theta[[1]][[3]]%*%x[i,] + theta[[2]][[3]], type = type) + theta[[2]][[2]], type = type)
+                                              + theta[[2]][[1]] + t(z[i,])%*%theta[[3]], family = family)%*%z[i,])/(phi*a[i]*var.fun(mu[i], family = family))
+  }
   kp.vector <- vector(length = m)
   for(j in 1:m){
     kp.vector[j] <- sum(kp.matrix[j,])
@@ -194,15 +214,15 @@ k.prime <- function(theta, y, x, mu, a, var.fun, type, z, family, phi, m, n, D){
 # - formula: response ~ predictors + (1|subjectID)
 # - family: 'gaussian' or 'binomial'
 # - penalization: lambda for squared L2 penalty term
-# - nodes: number of nodes in the hidden layer
-# - tolerance: 
+# - nodes1: number of nodes in layer 1
+# - nodes2: number of nodes in layer 2 (leave as NULL for 1-layer network)
 # - step_size: network learning rate
 # - act_fun: activation function, can be 'relu' or 'sigmoid'
 # - weights, biases: initial network parameters; if NA, randomly intialized
 # - nepochs: number of training epochs
 # - incl_ranef: TRUE/FALSE to include a random intercept term
-gnmm.sgd <- function(formula, family, penalization, nodes, tolerance, step_size, 
-                      act_fun, weights = NA, biases = NA, nepochs=10,incl_ranef=TRUE, ...){
+gnmm.sgd <- function(formula, family, penalization, nodes1, nodes2=NULL, step_size, 
+                     act_fun, weights = NA, biases = NA, nepochs=10, incl_ranef=TRUE, ...){
   
   ## parse formula: y is response, x is the data frame, and lab is the identifier
   ## formula in the form: response ~ df + (1|ID)
@@ -224,7 +244,8 @@ gnmm.sgd <- function(formula, family, penalization, nodes, tolerance, step_size,
   
   # set network conditions
   p <- ncol(x)
-  k1 <- nodes
+  k1 <- nodes1
+  k2 <- nodes2
   m <- length(unique(lab))
   df1 <- data.frame(y, x, lab)
   n <- aggregate(x~lab, data = df1, length)[,2]
@@ -237,7 +258,6 @@ gnmm.sgd <- function(formula, family, penalization, nodes, tolerance, step_size,
   eta <- step_size
   lfamily <- family
   atype <- act_fun
-  tol <- tolerance
   a <- rep(1, sum(n))
   
   
@@ -263,20 +283,32 @@ gnmm.sgd <- function(formula, family, penalization, nodes, tolerance, step_size,
   
   # weight matrices
   suppressWarnings(if(is.na(weights)){
-    w0 <- matrix(rnorm(k1), nrow = 1, ncol = k1)
-    w1 <- matrix(rnorm(k1*p), nrow = k1, ncol = p)
-    joint.wv <- c(w0, w1)
-    weight.mat <- list(w0, w1, joint.wv)
+    if(is.null(k2)){    # 1 layer
+      w0 <- matrix(rnorm(k1), nrow = 1, ncol = k1)
+      w1 <- matrix(rnorm(k1*p), nrow = k1, ncol = p)
+      weight.mat <- list(w0, w1)
+    } else {            # 2 layers
+      w0 <- matrix(rnorm(k1), nrow = 1, ncol = k1)
+      w1 <- matrix(rnorm(k1*k2), nrow = k1, ncol = k2)
+      w2 <- matrix(rnorm(k2*p), nrow = k2, ncol = p)
+      weight.mat <- list(w0, w1, w2)
+    }
   } else{
     weight.mat <- weights
   })
-  
+
   # bias vectors
   suppressWarnings(if(is.na(biases)){
-    b0 <- matrix(rnorm(1), nrow = 1, ncol = 1)
-    b1 <- matrix(rnorm(k1), nrow = k1, ncol = 1)
-    joint.bv <- c(b0, b1)
-    bias.vec <- list(b0, b1, joint.bv)
+    if(is.null(k2)){
+      b0 <- matrix(rnorm(1), nrow = 1, ncol = 1)
+      b1 <- matrix(rnorm(k1), nrow = k1, ncol = 1)
+      bias.vec <- list(b0, b1) 
+    } else {
+      b0 <- matrix(rnorm(1), nrow = 1, ncol = 1)
+      b1 <- matrix(rnorm(k1), nrow = k1, ncol = 1)
+      b2 <- matrix(rnorm(k2), nrow = k2, ncol = 1)
+      bias.vec <- list(b0, b1, b2)
+    }
   } else{
     bias.vec <- biases
   })
@@ -298,83 +330,135 @@ gnmm.sgd <- function(formula, family, penalization, nodes, tolerance, step_size,
   # initial theta
   theta <- list(weight.mat, bias.vec, b)
   
-
+  
   ### maximization ###
   # run through network / calculate derivatives / update theta
-  nepoch=0
+  nepoch <- 0
   while(TRUE){
-    nepoch=nepoch+1
+    nepoch <- nepoch+1
     if(nepoch>nepochs){
       break
     }
-    obs_v = sample(1:(sum(n)),replace=F)
+    obs_v <- sample(1:(sum(n)),replace=F)
     for(iii in 1:(sum(n))){
       ## run through network with x[i,] and get mu
-      alpha1=rep(NA,k1*sum(n))
       mu <- rep(NA,sum(n))
-      for(i in 1:m){
-        curinds=(sum(n[0:(i-1)])+1):sum(n[1:i])
-        full_curinds2 = (sum(n[0:(i-1)])*k1 + 1):(k1*sum(n[1:i]))
-        for(j in curinds){
-          trj = j-curinds[1]+1
-          curinds2 = full_curinds2[((trj-1)*k1 +1):(trj*k1)]
-          alpha.i1 <- vector(length = k1)
-          alpha.i1 <- g1(theta[[1]][[2]]%*%x[j,] + theta[[2]][[2]], type = atype)
-          alpha1[curinds2] <- alpha.i1
-          mu.i <- g0(theta[[1]][[1]]%*%alpha1[curinds2] + theta[[2]][[1]] + 
-                       t(z[j,])%*%theta[[3]], family = lfamily)
-          mu[(sum(n[0:(i-1)])+1)+(trj-1)*1] <- mu.i
+      for (i in 1:sum(n)) {
+        if(is.null(k2)){    # 1 layer
+          alpha.i1 <- g1(theta[[1]][[2]]%*%x[i,] + theta[[2]][[2]], type = atype)
+        } else {            # 2 layers
+          alpha.i2 <- g1(theta[[1]][[3]]%*%x[i,] + theta[[2]][[3]], type = atype)
+          alpha.i1 <- g1(theta[[1]][[2]]%*%alpha.i2 + theta[[2]][[2]], type = atype)
         }
+        mu[i] <- g0(theta[[1]][[1]]%*%alpha.i1 + theta[[2]][[1]] + t(z[i,])%*%theta[[3]], family = lfamily)
       }
       
       # calculate derivatives and put into matrices
-      obs = obs_v[iii]
+      obs <- obs_v[iii]
       
-      # row vector of weight0 derivatives 
-      delta.weight0 <- vector(length = k1)
-      for (j in 1:k1){
-        delta.weight0[j] <- t(weight0sgd(obs,theta, j = j, y=y, x=x, mu=mu, a=a, 
-                                         var.fun=var.fun, type = atype, z=z,
-                                         family = lfamily, phi = phi, m=m, n=n,
-                                         lambda=lambda, b.vec = theta[[3]]))
-      }
-      
-      # matrix of weight1 derivatives
-      delta.weight1 <- matrix(nrow = k1, ncol = p)
-      for (k in 1:k1) {
-        for (j in 1:p) {
-          delta.weight1[k,j] <- weight1sgd(obs,theta, j=j, k=k, y=y, x=x, mu=mu,
-                                           a=a, var.fun=var.fun, type = atype, 
-                                           z=z, family = lfamily, phi = phi, m=m, 
-                                           n=n, lambda=lambda, k1=k1, b.vec = theta[[3]])
+      if(is.null(k2)){    # 1 layer
+        # row vector of weight0 derivatives 
+        delta.weight0 <- vector(length = k1)
+        for (j in 1:k1){
+          delta.weight0[j] <- t(weight0sgd(obs, theta, j = j, y=y, x=x, mu=mu, a=a, 
+                                           var.fun=var.fun, type=atype, z=z,
+                                           family=lfamily, phi=phi, m=m, n=n,
+                                           lambda=lambda, b.vec=theta[[3]]))
         }
+        
+        # scalar bias0 derivative
+        delta.bias0 <- bias0sgd(obs, theta, y=y, x=x, mu=mu, a=a, var.fun=var.fun, type=atype,
+                                z=z, family=lfamily, phi=phi, m=m, n=n, lambda=lambda, b.vec=theta[[3]])
+        
+        # matrix of weight1 derivatives
+        delta.weight1 <- matrix(nrow = k1, ncol = p)
+        for (k in 1:k1) {
+          for (j in 1:p) {
+            delta.weight1[k,j] <- weight1sgd(obs, theta, j=j, k=k, y=y, x=x, mu=mu,
+                                             a=a, var.fun=var.fun, type=atype, 
+                                             z=z, family=lfamily, phi=phi, m=m, 
+                                             n=n, lambda=lambda, k1=k1, b.vec=theta[[3]])
+          }
+        }
+        
+        # column vector of bias1 derivatives
+        delta.bias1 <- vector(length = k1)
+        for (k in 1:k1) {
+          delta.bias1[k] <- bias1sgd(obs, theta, k = k, y=y, x=x, mu=mu, a=a, var.fun=var.fun,
+                                     type=atype, z=z, family=lfamily, phi=phi, m=m,
+                                     n=n, lambda=lambda, b.vec=theta[[3]])
+        }
+        
+        # column vector of kappa prime 
+        delta.b <- k.prime(theta, y=y, x=x, mu=mu, a=a, var.fun=var.fun, type=atype,
+                           z=z, family=lfamily, phi=phi, m=m, n=n, D=D)
+        
+      } else {            # 2 layers
+        # row vector of weight0 derivatives 
+        delta.weight0 <- vector(length = k1)
+        for (j in 1:k1){
+          delta.weight0[j] <- t(weight0sgd_2l(obs, theta, j=j, y=y, x=x, mu=mu, a=a,
+                                              var.fun=var.fun, type=atype, z=z,
+                                              family=lfamily, phi=phi, m=m, n=n,
+                                              lambda=lambda, b.vec=theta[[3]]))
+        }
+        # scalar bias0 derivative
+        delta.bias0 <- bias0sgd_2l(obs, theta, y=y, x=x, mu=mu, a=a, var.fun=var.fun, type=atype,
+                                   z=z, family=lfamily, phi=phi, m=m, n=n, lambda=lambda, b.vec=theta[[3]])
+        
+        # matrix of weight1 derivatives
+        delta.weight1 <- matrix(nrow = k1, ncol = k2)
+        for (k in 1:k1) {
+          for (j in 1:k2) {
+            delta.weight1[k,j] <- weight1sgd_2l(obs, theta, j=j, k=k, y=y, x=x, mu=mu,
+                                             a=a, var.fun=var.fun, type=atype, 
+                                             z=z, family=lfamily, phi=phi, m=m, 
+                                             n=n, lambda=lambda, b.vec=theta[[3]])
+          }
+        }
+        
+        
+        # column vector of bias1 derivatives
+        delta.bias1 <- vector(length = k1)
+        for (k in 1:k1) {
+          delta.bias1[k] <- bias1sgd_2l(obs, theta, k=k, y=y, x=x, mu=mu, a=a, var.fun=var.fun,
+                                        type=atype, z=z, family=lfamily, phi=phi, m=m,
+                                        n=n, lambda=lambda, b.vec=theta[[3]])
+        }
+        
+        # matrix of weight2 derivatives
+        delta.weight2 <- matrix(nrow = k2, ncol = p)
+        for (k in 1:k2) {
+          for (j in 1:p) {
+            delta.weight2[k,j] <- weight2sgd_2l(obs, theta, j=j, k=k, y=y, x=x, mu=mu,
+                                                a=a, var.fun=var.fun, type=atype, 
+                                                z=z, family=lfamily, phi=phi, m=m, 
+                                                n=n, lambda=lambda, b.vec=theta[[3]])
+          }
+        }
+        
+        # column vector of bias2 derivatives
+        delta.bias2 <- vector(length = k2)
+        for (k in 1:k2) {
+          delta.bias2[k] <- bias2sgd_2l(obs, theta, k=k, y=y, x=x, mu=mu, a=a, var.fun=var.fun,
+                                        type = atype, z=z, family=lfamily, phi=phi, m=m,
+                                        n=n, lambda=lambda, b.vec=theta[[3]])
+        }
+        
+        # column vector of kappa prime 
+        delta.b <- k.prime_2l(theta, y=y, x=x, mu=mu, a=a, var.fun=var.fun, type=atype,
+                              z=z, family=lfamily, phi=phi, m=m, n=n, D=D)
+        
       }
-      
-      # scalar bias0 derivative
-      delta.bias0 <- bias0sgd(obs,theta, y=y, x=x, mu=mu, a=a, var.fun=var.fun, type = atype,
-                              z=z, family = lfamily, phi = phi, m=m, n=n, lambda=lambda,
-                              b.vec = theta[[3]])
-      
-      # column vector of bias1 derivatives
-      delta.bias1 <- vector(length = k1)
-      for (k in 1:k1) {
-        delta.bias1[k] <- bias1sgd(obs,theta, k = k, y=y, x=x, mu=mu, a=a, var.fun=var.fun,
-                                   type = atype, z=z, family = lfamily, phi = phi, m=m,
-                                   n=n, lambda=lambda, b.vec = theta[[3]])
-      }
-      
-      # column vector of kappa prime 
-      delta.b <- k.prime(theta, y=y, x=x, mu=mu, a=a, var.fun=var.fun, type = atype,
-                         z=z, family = lfamily, phi = phi, m=m, n=n, D = D)
-      
+
       
       ## update weights, biases, and b
       theta[[1]][[1]] <- theta[[1]][[1]] + (eta*delta.weight0)
       theta[[1]][[2]] <- theta[[1]][[2]] + (eta*delta.weight1)
-      theta[[1]][[3]] <- c(theta[[1]][[1]], theta[[1]][[2]])
+      if(!is.null(k2))  theta[[1]][[3]] <- theta[[1]][[3]] + (eta*delta.weight2)
       theta[[2]][[1]] <- theta[[2]][[1]] + (eta*delta.bias0)
       theta[[2]][[2]] <- theta[[2]][[2]] + (eta*delta.bias1)
-      theta[[2]][[3]] <- c(theta[[2]][[1]], theta[[2]][[2]])
+      if(!is.null(k2)) theta[[2]][[3]] <- theta[[2]][[3]] + (eta*delta.bias2)
       if(incl_ranef){
         theta[[3]]      <- theta[[3]] - (eta*delta.b)
       }
@@ -417,6 +501,7 @@ gnmm.predict <- function(new_data, id, gnmm.fit){
   
   # save network settings
   k1 <- length(gnmm.fit$biases[[2]])
+  k2 <- ifelse(length(gnmm.fit$biases)==3, length(gnmm.fit$biases[[3]]), NA)
   N <- nrow(new_data)
   z <- gnmm.fit$zmat
   zind <- gnmm.fit$obspp
@@ -427,10 +512,14 @@ gnmm.predict <- function(new_data, id, gnmm.fit){
   mu <- rep(NA,N)
   for(i in 1:N){
     subj <- which(unique(gnmm.fit$ID)==id[i])
-    alpha.i1 <- vector(length = k1)
-    alpha.i1 <- g1(theta[[1]][[2]]%*%new_data[i,] + theta[[2]][[2]], type = atype)
-    mu.i <- g0(theta[[1]][[1]]%*%alpha.i1 + theta[[2]][[1]] + t(z[(sum(zind[1:subj])),])%*%theta[[3]], family = lfamily)
-    mu[i] <- mu.i
+    if(is.na(k2)){    # 1 layer
+      alpha.i1 <- g1(theta[[1]][[2]]%*%new_data[i,] + theta[[2]][[2]], type = atype)
+    } else {            # 2 layers
+      alpha.i2 <- g1(theta[[1]][[3]]%*%new_data[i,] + theta[[2]][[3]], type = atype)
+      alpha.i1 <- g1(theta[[1]][[2]]%*%alpha.i2 + theta[[2]][[2]], type = atype)
+    }
+    mu[i] <- g0(theta[[1]][[1]]%*%alpha.i1 + theta[[2]][[1]] + t(z[(sum(zind[1:subj])),])%*%theta[[3]], family = lfamily)
   }
   return(mu)
 }
+

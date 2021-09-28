@@ -67,26 +67,37 @@ source('Network_Functions.R')
 
 # network settings
 nepochs <- 50
-hidnodes <- 3
+hidnodes1 <- 3
+hidnodes2 <- 2
 
-# run GNMM
+# run 1-layer GNMM
 set.seed(12044)
-mspe.gnmm <- rep(NA,5)
+mspe.gnmm1 <- rep(NA,5)
 for (i in 1:5) {
   m1 <- gnmm.sgd(formula = Y.train ~ X.train + (1|lab.train), family = 'gaussian', penalization = 0.001,
-                  nodes = hidnodes, tolerance = 10^-8, step_size = 0.005, act_fun = 'relu', nepochs = nepochs, incl_ranef = TRUE)
+                  nodes1 = hidnodes1, nodes2 = NULL, step_size = 0.005, act_fun = 'relu', nepochs = nepochs, incl_ranef = TRUE)
   pred1 <- gnmm.predict(new_data = X.test, id = lab.test, gnmm.fit = m1)
-  mspe.gnmm[i] <- mean((Y.test-pred1)^2)
+  mspe.gnmm1[i] <- mean((Y.test-pred1)^2)
+}
+
+# run 2-layer GNMM
+set.seed(12045)
+mspe.gnmm2 <- rep(NA,5)
+for (i in 1:5) {
+  m2 <- gnmm.sgd(formula = Y.train ~ X.train + (1|lab.train), family = 'gaussian', penalization = 0.002,
+                  nodes1 = hidnodes1, nodes2 = hidnodes2, step_size = 0.005, act_fun = 'relu', nepochs = nepochs, incl_ranef = TRUE)
+  pred2 <- gnmm.predict(new_data = X.test, id = lab.test, gnmm.fit = m2)
+  mspe.gnmm2[i] <- mean((Y.test-pred2)^2)
 }
 
 # run ANN
 set.seed(12045)
-mspe.ann <- rep(NA, 5)
+mspe.ann <- rep(NA,5)
 for (i in 1:5) {
-  m2 <- gnmm.sgd(formula = Y.train ~ X.train + (1|lab.train), family = 'gaussian', penalization = 0.001,
-                  nodes = hidnodes, tolerance = 10^-8, step_size = 0.005, act_fun = 'relu', nepochs = nepochs, incl_ranef = FALSE)
-  pred2 <- gnmm.predict(new_data = X.test, id = lab.test, gnmm.fit = m2)
-  mspe.ann[i] <- mean((Y.test-pred2)^2)
+  m3 <- gnmm.sgd(formula = Y.train ~ X.train + (1|lab.train), family = 'gaussian', penalization = 0.001,
+                  nodes1 = hidnodes1, nodes2 = NULL, step_size = 0.005, act_fun = 'relu', nepochs = nepochs, incl_ranef = FALSE)
+  pred3 <- gnmm.predict(new_data = X.test, id = lab.test, gnmm.fit = m3)
+  mspe.ann[i] <- mean((Y.test-pred3)^2)
 }
 
 # run GLMM
@@ -97,42 +108,45 @@ glmm.coef <- matrix(s1$coefficients[2:(p+1),1])
 fef.pred <- X.test%*%glmm.coef + rep(matrix(s1$coefficients[1,1]),m)     ## fixed effect prediction
 glm.ref <- as.vector(c(ranef(glmm.out)$lab.train))
 glm.ref <- unlist(unname(glm.ref))
-pred3 <- fef.pred + glm.ref             ## fixed effect + random effect prediction
+pred4 <- fef.pred + glm.ref             ## fixed effect + random effect prediction
 
 # run MP
 # 4th iteration does not converge so model is run 6 times and 4th run is dropped
 set.seed(12047)
-mspe.mp <- rep(NA, 6)
+mspe.mp <- rep(NA,6)
 for (i in 1:6) {
-  m4 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 1,
-                 nodes = hidnodes, tolerance = 10^-8, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE)
-  m4 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 0.75025,
-                 nodes = hidnodes, tolerance = 10^-8, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE,
-                 weights = m4$weights, biases = m4$biases)
-  m4 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 0.50050,
-                 nodes = hidnodes, tolerance = 10^-8, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE,
-                 weights = m4$weights, biases = m4$biases)
-  m4 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 0.25075,
-                 nodes = hidnodes, tolerance = 10^-8, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE,
-                 weights = m4$weights, biases = m4$biases)
-  m4 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 0.001,
-                 nodes = hidnodes, tolerance = 10^-8, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE,
-                 weights = m4$weights, biases = m4$biases)
-  pred4 <- gnmm.predict(new_data = X.mp.test, id = lab.test, gnmm.fit = m4)
-  mspe.mp[i] <- mean((Y.test-pred4)^2) 
+  m5 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 1,
+                 nodes1 = hidnodes1, nodes2 = NULL, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE)
+  m5 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 0.75025,
+                 nodes1 = hidnodes1, nodes2 = NULL, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE,
+                 weights = m5$weights, biases = m5$biases)
+  m5 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 0.50050,
+                 nodes1 = hidnodes1, nodes2 = NULL, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE,
+                 weights = m5$weights, biases = m5$biases)
+  m5 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 0.25075,
+                 nodes1 = hidnodes1, nodes2 = NULL, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE,
+                 weights = m5$weights, biases = m5$biases)
+  m5 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 0.001,
+                 nodes1 = hidnodes1, nodes2 = NULL, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE,
+                 weights = m5$weights, biases = m5$biases)
+  pred5 <- gnmm.predict(new_data = X.mp.test, id = lab.test, gnmm.fit = m5)
+  mspe.mp[i] <- mean((Y.test-pred5)^2) 
 }
 ```
 
 ### Compare MSPE from 4 models  
 ```{r}
-# GNMM
-mean(mspe.gnmm)    # 0.428   
+# 1-layer GNMM
+mean(mspe.gnmm1)    # 0.428   
+
+# 2-layer GNMM
+mean(mspe.gnmm2)    # 0.422  
 
 # ANN
 mean(mspe.ann)     # 1.076
  
 # GLMM
-mean((Y.test-pred3)^2)    # 0.546
+mean((Y.test-pred4)^2)    # 0.546
 
 # MP
 mean(mspe.mp, na.rm = TRUE)   # 1.218
@@ -199,27 +213,39 @@ source('Network_Functions.R')
 
 # network settings
 nepochs <- 50
-hidnodes <- 3
+hidnodes1 <- 3
+hidnodes2 <- 2
 
-# Run GNMM
+# Run 1-layer GNMM
 # 1st and 6th iterations do not converge so model is run 7 times and 2 runs are dropped
 set.seed(12046)
-mspe.gnmm <- rep(NA,7)
+mspe.gnmm1 <- rep(NA,7)
 for (i in 1:7) {
   m1 <- gnmm.sgd(formula = Y.train ~ X.train + (1|lab.train), family = 'gaussian', penalization = 0.001,
-                  nodes = hidnodes, tolerance = 10^-8, step_size = 0.01, act_fun = 'relu',nepochs = nepochs, incl_ranef = TRUE)
+                  nodes1 = hidnodes1, nodes2 = NULL, step_size = 0.01, act_fun = 'relu',nepochs = nepochs, incl_ranef = TRUE)
   pred1 <- gnmm.predict(new_data = X.test, id = lab.test, gnmm.fit = m1)
-  mspe.gnmm[i] <- mean((Y.test-pred1)^2)
+  mspe.gnmm1[i] <- mean((Y.test-pred1)^2)
+}
+
+# Run 2-layer GNMM
+set.seed(12046)
+mspe.gnmm2 <- rep(NA,5)
+for (i in 1:5) {
+  m2 <- gnmm.sgd(formula = Y.train ~ X.train + (1|lab.train), family = 'gaussian', penalization = 0.001,
+                  nodes1 = hidnodes1, nodes2 = hidnodes2, step_size = 0.01, act_fun = 'relu',nepochs = nepochs, incl_ranef = TRUE)
+  pred2 <- gnmm.predict(new_data = X.test, id = lab.test, gnmm.fit = m2)
+  mspe.gnmm2[i] <- mean((Y.test-pred2)^2)
 }
 
 # Run ANN
-set.seed(12046)
-mspe.ann <- rep(NA, 5)
-for (i in 1:5) {
-  m2 <- gnmm.sgd(formula = Y.train ~ X.train + (1|lab.train), family = 'gaussian', penalization = 0.001,
-                  nodes = hidnodes, tolerance = 10^-8, step_size = 0.005, act_fun = 'relu', nepochs = nepochs, incl_ranef = FALSE)
-  pred2 <- gnmm.predict(new_data = X.test, id = lab.test, gnmm.fit = m2)
-  mspe.ann[i] <- mean((Y.test-pred2)^2)
+# 4th iteration does not converge so model is run 6 times and 4th run is dropped
+set.seed(12045)
+mspe.ann <- rep(NA,6)
+for (i in 1:6) {
+  m3 <- gnmm.sgd(formula = Y.train ~ X.train + (1|lab.train), family = 'gaussian', penalization = 0.001,
+                  nodes1 = hidnodes1, nodes2 = NULL, step_size = 0.01, act_fun = 'relu', nepochs = nepochs, incl_ranef = FALSE)
+  pred3 <- gnmm.predict(new_data = X.test, id = lab.test, gnmm.fit = m3)
+  mspe.ann[i] <- mean((Y.test-pred3)^2)
 }
 
 # Run GLMM
@@ -230,42 +256,45 @@ glmm.coef <- matrix(s1$coefficients[2:(p+1),1])
 fef.pred <- X.test%*%glmm.coef + rep(matrix(s1$coefficients[1,1]),m)     ## fixed effect prediction
 glm.ref <- as.vector(c(ranef(glmm.out)$lab.train))
 glm.ref <- unlist(unname(glm.ref))
-pred3 <- fef.pred + glm.ref             ## fixed effect + random effect prediction
+pred4 <- fef.pred + glm.ref             ## fixed effect + random effect prediction
 
 # Run MP
 # 4th iteration does not converge so model is run 6 times and 4th run is dropped
 set.seed(12047)
-mspe.mp <- rep(NA, 6)
+mspe.mp <- rep(NA,6)
 for(i in 1:6) {
-  m4 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 1,
-                 nodes = hidnodes, tolerance = 10^-8, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE)
-  m4 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 0.75025,
-                 nodes = hidnodes, tolerance = 10^-8, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE,
-                 weights = m4$weights, biases = m4$biases)
-  m4 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = .50050,
-                 nodes = hidnodes, tolerance = 10^-8, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE,
-                 weights = m4$weights, biases = m4$biases)
-  m4 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 0.25075,
-                 nodes = hidnodes, tolerance = 10^-8, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE,
-                 weights = m4$weights, biases = m4$biases)
-  m4 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 0.001,
-                 nodes = hidnodes, tolerance = 10^-8, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE,
-                 weights = m4$weights, biases = m4$biases)
-  pred4 <- gnmm.predict(new_data = X.mp.test, id = lab.test, gnmm.fit = m4)
-  mspe.mp[i] <- mean((Y.test-pred4)^2)
+  m5 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 1,
+                 nodes1 = hidnodes1, nodes2 = NULL, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE)
+  m5 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 0.75025,
+                 nodes1 = hidnodes1, nodes2 = NULL, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE,
+                 weights = m5$weights, biases = m5$biases)
+  m5 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = .50050,
+                 nodes1 = hidnodes1, nodes2 = NULL, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE,
+                 weights = m5$weights, biases = m5$biases)
+  m5 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 0.25075,
+                 nodes1 = hidnodes1, nodes2 = NULL, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE,
+                 weights = m5$weights, biases = m5$biases)
+  m5 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 0.001,
+                 nodes1 = hidnodes1, nodes2 = NULL, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE,
+                 weights = m5$weights, biases = m5$biases)
+  pred5 <- gnmm.predict(new_data = X.mp.test, id = lab.test, gnmm.fit = m5)
+  mspe.mp[i] <- mean((Y.test-pred5)^2)
 }
 ```
 
 ### Compare MSPE from 4 models  
 ```{r}
-# GNMM
-mean(mspe.gnmm, na.rm = TRUE)    # 0.062   
+# 1-layer GNMM
+mean(mspe.gnmm1, na.rm = TRUE)    # 0.062   
+
+# 2-layer GNMM
+mean(mspe.gnmm2)    # 0.061   
 
 # ANN
-mean(mspe.ann)      # 0.542
+mean(mspe.ann, na.rm = TRUE)      # 0.413
 
 # GLMM
-mean((Y.test-pred3)^2)    # 0.068
+mean((Y.test-pred4)^2)    # 0.068
 
 # MP
 mean(mspe.mp, na.rm=TRUE)    # 0.518

@@ -21,36 +21,37 @@ set.seed(1204123878)
 #################################################################################################################
 psims <- foreach(a = 1:nsim, .options.snow = opts, .errorhandling = 'pass') %dorng% {
   library(lme4)
-  tau_v = seq(0,20,4)
-  m=100
+  tau_v <- seq(0,20,4)
+  m <- 100
   
   # Simulation 8: linear, 10 nodes
-  pred.matrix <- matrix(NA, nrow = m*6, ncol = 5)
+  pred.matrix <- matrix(NA, nrow = m*6, ncol = 6)
   for(bb in 1:length(tau_v)){
-    tau=tau_v[bb]
+    tau <- tau_v[bb]
     
     #### Simulate linear binary data
-    p = 6
-    m = 100
-    n = rpois(m,6)+2
-    nepochs=5
+    p <- 6
+    m <- 100
+    n <- rpois(m,6)+2
+    nepochs <- 15
     betas <- rnorm(6,0.3,3)
-    sigma=.05
-    hidnodes=10
+    sigma <- .05
+    hidnodes1 <- 10
+    hidnodes2 <- 5
     
-    lab = rep(NA,sum(n))
-    Y = rep(NA,sum(n))
-    pp = rep(NA,sum(n))
-    X = matrix(NA,ncol=p,nrow=sum(n))
+    lab <- rep(NA,sum(n))
+    Y <- rep(NA,sum(n))
+    pp <- rep(NA,sum(n))
+    X <- matrix(NA,ncol=p,nrow=sum(n))
     for(i in 1:m){
-      curinds=(sum(n[0:(i-1)])+1):sum(n[1:i])
-      lab[curinds]=i
-      X[curinds,]= rbinom(n[i]*p,1,0.5)
-      ranef=rnorm(1,mean=0,sd=sqrt(tau))
+      curinds <- (sum(n[0:(i-1)])+1):sum(n[1:i])
+      lab[curinds] <- i
+      X[curinds,] <- rbinom(n[i]*p,1,0.5)
+      ranef <- rnorm(1,mean=0,sd=sqrt(tau))
       for(j in curinds){
         s.comp <- ranef + betas %*% X[j,] + rnorm(1, mean = 0, sd=sigma)
-        pp[j] = exp(s.comp)/(1+exp(s.comp))
-        Y[j]= rbinom(1,1,prob = pp[j])
+        pp[j] <- exp(s.comp)/(1+exp(s.comp))
+        Y[j] <- rbinom(1,1,prob = pp[j])
       }
     }
     
@@ -80,17 +81,22 @@ psims <- foreach(a = 1:nsim, .options.snow = opts, .errorhandling = 'pass') %dor
     X.mp.train <- X.mp[-cum.n,]
     X.mp.everyn <- X.mp[cum.n,]
     
-    #### Run 4 models
+    #### Run 5 models
     
-    ### Run GNMM and predict last observation
+    ### Run 1-layer GNMM and predict last observation
     m1 <- gnmm.sgd(formula = Y.train ~ X.train + (1|lab.train), family = 'binomial', penalization = 0.001,
-                   nodes = hidnodes, tolerance = 10^-8, step_size = 0.05, act_fun = 'relu', nepochs = nepochs, incl_ranef = TRUE)
+                   nodes1 = hidnodes1, nodes2 = NULL, step_size = 0.025, act_fun = 'relu', nepochs = nepochs, incl_ranef = TRUE)
     pred1 <- gnmm.predict(new_data = X.everyn, id = lab.everyn, gnmm.fit = m1)
+
+    ### Run 2-layer GNMM and predict last observation
+    m2 <- gnmm.sgd(formula = Y.train ~ X.train + (1|lab.train), family = 'binomial', penalization = 0.005,
+                   nodes1 = hidnodes1, nodes2 = hidnodes2, step_size = 0.01, act_fun = 'relu', nepochs = nepochs, incl_ranef = TRUE)
+    pred2 <- gnmm.predict(new_data = X.everyn, id = lab.everyn, gnmm.fit = m2)
     
     ### Run ANN and predict last observation
-    m2 <- gnmm.sgd(formula = Y.train ~ X.train + (1|lab.train), family = 'binomial', penalization = 0.001,
-                   nodes = hidnodes, tolerance = 10^-8, step_size = 0.05, act_fun = 'relu', nepochs = nepochs, incl_ranef = FALSE)
-    pred2 <- gnmm.predict(new_data = X.everyn, id = lab.everyn, gnmm.fit = m2)
+    m3 <- gnmm.sgd(formula = Y.train ~ X.train + (1|lab.train), family = 'binomial', penalization = 0.001,
+                   nodes1 = hidnodes1, nodes2 = NULL, step_size = 0.025, act_fun = 'relu', nepochs = nepochs, incl_ranef = FALSE)
+    pred3 <- gnmm.predict(new_data = X.everyn, id = lab.everyn, gnmm.fit = m3)
     
     ### Run GLMER and predict last observation
     glmm.out <- glmer(Y.train ~ X.train + (1|lab.train), family = 'binomial')
@@ -100,12 +106,12 @@ psims <- foreach(a = 1:nsim, .options.snow = opts, .errorhandling = 'pass') %dor
     glm.ref <- as.vector(c(ranef(glmm.out)$lab.train))
     glm.ref <- unname(glm.ref)
     glm.ref <- unlist(glm.ref)
-    pred3 <- fef.pred + glm.ref             ## fixed effect + random effect prediction
+    pred4 <- fef.pred + glm.ref             ## fixed effect + random effect prediction
     
     ### Run ANN with inputs for each individual (Maity-Pal)
-    m4 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'binomial', penalization = 0.001,
-                   nodes = hidnodes, tolerance = 10^-8, step_size = 0.05, act_fun = 'relu', nepochs = nepochs, incl_ranef = FALSE)
-    pred4 <- gnmm.predict(new_data = X.mp.everyn, id = lab.everyn, gnmm.fit = m4)
+    m5 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'binomial', penalization = 0.001,
+                   nodes1 = hidnodes1, nodes2 = NULL, step_size = 0.025, act_fun = 'relu', nepochs = nepochs, incl_ranef = FALSE)
+    pred5 <- gnmm.predict(new_data = X.mp.everyn, id = lab.everyn, gnmm.fit = m5)
     
     ### Fill in prediction values
     pred.matrix[((bb-1)*m+1):(bb*m),1] <- Y.everyn
@@ -113,6 +119,7 @@ psims <- foreach(a = 1:nsim, .options.snow = opts, .errorhandling = 'pass') %dor
     pred.matrix[((bb-1)*m+1):(bb*m),3] <- pred2
     pred.matrix[((bb-1)*m+1):(bb*m),4] <- pred3
     pred.matrix[((bb-1)*m+1):(bb*m),5] <- pred4
+    pred.matrix[((bb-1)*m+1):(bb*m),6] <- pred5
     
   }
   
@@ -120,110 +127,108 @@ psims <- foreach(a = 1:nsim, .options.snow = opts, .errorhandling = 'pass') %dor
   
 }
 
+
 #### Calculate AUC
 require(pROC)
-bin_l10 <- psims     # iteration 220 did not converge
-m=100
+bin_l10 <- psims
+m <- 100
+sims <- which(sapply(bin_l10,length)==3600)     # remove iterations with errors
+auc_gnmm1_l10 <- list(); auc_gnmm2_l10 <- list()
+auc_ann_l10 <- list(); auc_glmm_l10 <- list(); auc_mp_l10 <- list()
 
 ## tau = 0
-auc_gnmm_0_l10 <- rep(NA, 500); auc_ann_0_l10 <- rep(NA, 500)
-auc_glmm_0_l10 <- rep(NA, 500); auc_mp_0_l10 <- rep(NA, 500)
+auc_gnmm1_l10[[1]] <- rep(NA, 500); auc_gnmm2_l10[[1]] <- rep(NA, 500) 
+auc_ann_l10[[1]] <- rep(NA, 500); auc_glmm_l10[[1]] <- rep(NA, 500); auc_mp_l10[[1]] <- rep(NA, 500)
 # iteration 8 has all 1's in response
-for (i in c(1:7,9:219,221:500)) {
-  auc_gnmm_0_l10[i] <- auc(roc(bin_l10[[i]][1:m,1] ~ bin_l10[[i]][1:m,2]))
-  auc_ann_0_l10[i] <- auc(roc(bin_l10[[i]][1:m,1] ~ bin_l10[[i]][1:m,3]))
-  auc_glmm_0_l10[i] <- auc(roc(bin_l10[[i]][1:m,1] ~ bin_l10[[i]][1:m,4]))
-  auc_mp_0_l10[i] <- auc(roc(bin_l10[[i]][1:m,1] ~ bin_l10[[i]][1:m,5])) 
+for (i in sims[-8]) {
+  auc_gnmm1_l10[[1]][i] <- auc(roc(bin_l10[[i]][1:m,1] ~ bin_l10[[i]][1:m,2]))
+  if(!is.na(bin_l10[[i]][1:m,3][1])) 
+    auc_gnmm2_l10[[1]][i] <- auc(roc(bin_l10[[i]][1:m,1] ~ bin_l10[[i]][1:m,3]))
+  auc_ann_l10[[1]][i] <- auc(roc(bin_l10[[i]][1:m,1] ~ bin_l10[[i]][1:m,4]))
+  auc_glmm_l10[[1]][i] <- auc(roc(bin_l10[[i]][1:m,1] ~ bin_l10[[i]][1:m,5]))
+  auc_mp_l10[[1]][i] <- auc(roc(bin_l10[[i]][1:m,1] ~ bin_l10[[i]][1:m,6]))
 }
 
 ## tau = 4
-auc_gnmm_4_l10 <- rep(NA, 500); auc_ann_4_l10 <- rep(NA, 500)
-auc_glmm_4_l10 <- rep(NA, 500); auc_mp_4_l10 <- rep(NA, 500)
-for (i in c(1:219,221:500)) {
-  auc_gnmm_4_l10[i] <- auc(roc(bin_l10[[i]][(m+1):(2*m),1] ~ bin_l10[[i]][(m+1):(2*m),2]))
-  auc_ann_4_l10[i] <- auc(roc(bin_l10[[i]][(m+1):(2*m),1] ~ bin_l10[[i]][(m+1):(2*m),3]))
-  auc_glmm_4_l10[i] <- auc(roc(bin_l10[[i]][(m+1):(2*m),1] ~ bin_l10[[i]][(m+1):(2*m),4]))
-  auc_mp_4_l10[i] <- auc(roc(bin_l10[[i]][(m+1):(2*m),1] ~ bin_l10[[i]][(m+1):(2*m),5]))
+auc_gnmm1_l10[[2]] <- rep(NA, 500); auc_gnmm2_l10[[2]] <- rep(NA, 500) 
+auc_ann_l10[[2]] <- rep(NA, 500); auc_glmm_l10[[2]] <- rep(NA, 500); auc_mp_l10[[2]] <- rep(NA, 500)
+for (i in sims) {
+  if(i!=100) auc_gnmm1_l10[[2]][i] <- auc(roc(bin_l10[[i]][(m+1):(2*m),1] ~ bin_l10[[i]][(m+1):(2*m),2]))
+  if(!is.na(bin_l10[[i]][(m+1):(2*m),3][1])) 
+    auc_gnmm2_l10[[2]][i] <- auc(roc(bin_l10[[i]][(m+1):(2*m),1] ~ bin_l10[[i]][(m+1):(2*m),3]))
+  auc_ann_l10[[2]][i] <- auc(roc(bin_l10[[i]][(m+1):(2*m),1] ~ bin_l10[[i]][(m+1):(2*m),4]))
+  auc_glmm_l10[[2]][i] <- auc(roc(bin_l10[[i]][(m+1):(2*m),1] ~ bin_l10[[i]][(m+1):(2*m),5]))
+  auc_mp_l10[[2]][i] <- auc(roc(bin_l10[[i]][(m+1):(2*m),1] ~ bin_l10[[i]][(m+1):(2*m),6]))
 }
 
 ## tau = 8
-auc_gnmm_8_l10 <- rep(NA, 500); auc_ann_8_l10 <- rep(NA, 500)
-auc_glmm_8_l10 <- rep(NA, 500); auc_mp_8_l10 <- rep(NA, 500)
-# iteration 358 has all 1's in response
-for (i in c(1:219,221:357,359:500)) {
-  if(i==89 | i==113 | i==255 | i==328 | i==389){  # gnmm doesn't converge
-    auc_ann_8_l10[i] <- auc(roc(bin_l10[[i]][(2*m+1):(3*m),1] ~ bin_l10[[i]][(2*m+1):(3*m),3]))
-    auc_glmm_8_l10[i] <- auc(roc(bin_l10[[i]][(2*m+1):(3*m),1] ~ bin_l10[[i]][(2*m+1):(3*m),4]))
-    auc_mp_8_l10[i] <- auc(roc(bin_l10[[i]][(2*m+1):(3*m),1] ~ bin_l10[[i]][(2*m+1):(3*m),5]))  
-  } else{
-    auc_gnmm_8_l10[i] <- auc(roc(bin_l10[[i]][(2*m+1):(3*m),1] ~ bin_l10[[i]][(2*m+1):(3*m),2]))
-    auc_ann_8_l10[i] <- auc(roc(bin_l10[[i]][(2*m+1):(3*m),1] ~ bin_l10[[i]][(2*m+1):(3*m),3]))
-    auc_glmm_8_l10[i] <- auc(roc(bin_l10[[i]][(2*m+1):(3*m),1] ~ bin_l10[[i]][(2*m+1):(3*m),4]))
-    auc_mp_8_l10[i] <- auc(roc(bin_l10[[i]][(2*m+1):(3*m),1] ~ bin_l10[[i]][(2*m+1):(3*m),5]))
-  }
+auc_gnmm1_l10[[3]] <- rep(NA, 500); auc_gnmm2_l10[[3]] <- rep(NA, 500) 
+auc_ann_l10[[3]] <- rep(NA, 500); auc_glmm_l10[[3]] <- rep(NA, 500); auc_mp_l10[[3]] <- rep(NA, 500)
+for (i in sims) {
+  if(!is.na(bin_l10[[i]][(2*m+1):(3*m),2][1])) 
+    auc_gnmm1_l10[[3]][i] <- auc(roc(bin_l10[[i]][(2*m+1):(3*m),1] ~ bin_l10[[i]][(2*m+1):(3*m),2]))
+  if(!is.na(bin_l10[[i]][(2*m+1):(3*m),3][1])) 
+    auc_gnmm2_l10[[3]][i] <- auc(roc(bin_l10[[i]][(2*m+1):(3*m),1] ~ bin_l10[[i]][(2*m+1):(3*m),3]))
+  auc_ann_l10[[3]][i] <- auc(roc(bin_l10[[i]][(2*m+1):(3*m),1] ~ bin_l10[[i]][(2*m+1):(3*m),4]))
+  auc_glmm_l10[[3]][i] <- auc(roc(bin_l10[[i]][(2*m+1):(3*m),1] ~ bin_l10[[i]][(2*m+1):(3*m),5]))
+  auc_mp_l10[[3]][i] <- auc(roc(bin_l10[[i]][(2*m+1):(3*m),1] ~ bin_l10[[i]][(2*m+1):(3*m),6]))
 }
 
 ## tau = 12
-auc_gnmm_12_l10 <- rep(NA, 500); auc_ann_12_l10 <- rep(NA, 500)
-auc_glmm_12_l10 <- rep(NA, 500); auc_mp_12_l10 <- rep(NA, 500)
-for (i in c(1:219,221:500)) {
-  if(i==19){  # gnmm doesn't converge
-    auc_ann_12_l10[i] <- auc(roc(bin_l10[[i]][(3*m+1):(4*m),1] ~ bin_l10[[i]][(3*m+1):(4*m),3]))
-    auc_glmm_12_l10[i] <- auc(roc(bin_l10[[i]][(3*m+1):(4*m),1] ~ bin_l10[[i]][(3*m+1):(4*m),4]))
-    auc_mp_12_l10[i] <- auc(roc(bin_l10[[i]][(3*m+1):(4*m),1] ~ bin_l10[[i]][(3*m+1):(4*m),5]))
-  } else{
-    auc_gnmm_12_l10[i] <- auc(roc(bin_l10[[i]][(3*m+1):(4*m),1] ~ bin_l10[[i]][(3*m+1):(4*m),2]))
-    auc_ann_12_l10[i] <- auc(roc(bin_l10[[i]][(3*m+1):(4*m),1] ~ bin_l10[[i]][(3*m+1):(4*m),3]))
-    auc_glmm_12_l10[i] <- auc(roc(bin_l10[[i]][(3*m+1):(4*m),1] ~ bin_l10[[i]][(3*m+1):(4*m),4]))
-    auc_mp_12_l10[i] <- auc(roc(bin_l10[[i]][(3*m+1):(4*m),1] ~ bin_l10[[i]][(3*m+1):(4*m),5]))
-  }
+auc_gnmm1_l10[[4]] <- rep(NA, 500); auc_gnmm2_l10[[4]] <- rep(NA, 500) 
+auc_ann_l10[[4]] <- rep(NA, 500); auc_glmm_l10[[4]] <- rep(NA, 500); auc_mp_l10[[4]] <- rep(NA, 500)
+for (i in sims) {
+  if(!is.na(bin_l10[[i]][(3*m+1):(4*m),2][1])) 
+    auc_gnmm1_l10[[4]][i] <- auc(roc(bin_l10[[i]][(3*m+1):(4*m),1] ~ bin_l10[[i]][(3*m+1):(4*m),2]))
+  if(!is.na(bin_l10[[i]][(3*m+1):(4*m),3][1])) 
+    auc_gnmm2_l10[[4]][i] <- auc(roc(bin_l10[[i]][(3*m+1):(4*m),1] ~ bin_l10[[i]][(3*m+1):(4*m),3]))
+  auc_ann_l10[[4]][i] <- auc(roc(bin_l10[[i]][(3*m+1):(4*m),1] ~ bin_l10[[i]][(3*m+1):(4*m),4]))
+  auc_glmm_l10[[4]][i] <- auc(roc(bin_l10[[i]][(3*m+1):(4*m),1] ~ bin_l10[[i]][(3*m+1):(4*m),5]))
+  auc_mp_l10[[4]][i] <- auc(roc(bin_l10[[i]][(3*m+1):(4*m),1] ~ bin_l10[[i]][(3*m+1):(4*m),6]))
 }
 
 ## tau = 16
-auc_gnmm_16_l10 <- rep(NA, 500); auc_ann_16_l10 <- rep(NA, 500)
-auc_glmm_16_l10 <- rep(NA, 500); auc_mp_16_l10 <- rep(NA, 500)
-for (i in c(1:219,221:500)) {
-  auc_gnmm_16_l10[i] <- auc(roc(bin_l10[[i]][(4*m+1):(5*m),1] ~ bin_l10[[i]][(4*m+1):(5*m),2]))
-  auc_ann_16_l10[i] <- auc(roc(bin_l10[[i]][(4*m+1):(5*m),1] ~ bin_l10[[i]][(4*m+1):(5*m),3]))
-  auc_glmm_16_l10[i] <- auc(roc(bin_l10[[i]][(4*m+1):(5*m),1] ~ bin_l10[[i]][(4*m+1):(5*m),4]))
-  auc_mp_16_l10[i] <- auc(roc(bin_l10[[i]][(4*m+1):(5*m),1] ~ bin_l10[[i]][(4*m+1):(5*m),5]))  
+auc_gnmm1_l10[[5]] <- rep(NA, 500); auc_gnmm2_l10[[5]] <- rep(NA, 500) 
+auc_ann_l10[[5]] <- rep(NA, 500); auc_glmm_l10[[5]] <- rep(NA, 500); auc_mp_l10[[5]] <- rep(NA, 500)
+for (i in sims) {
+  if(!is.na(bin_l10[[i]][(4*m+1):(5*m),2][1])) 
+    auc_gnmm1_l10[[5]][i] <- auc(roc(bin_l10[[i]][(4*m+1):(5*m),1] ~ bin_l10[[i]][(4*m+1):(5*m),2]))
+  if(!is.na(bin_l10[[i]][(4*m+1):(5*m),3][1])) 
+    auc_gnmm2_l10[[5]][i] <- auc(roc(bin_l10[[i]][(4*m+1):(5*m),1] ~ bin_l10[[i]][(4*m+1):(5*m),3]))
+  auc_ann_l10[[5]][i] <- auc(roc(bin_l10[[i]][(4*m+1):(5*m),1] ~ bin_l10[[i]][(4*m+1):(5*m),4]))
+  auc_glmm_l10[[5]][i] <- auc(roc(bin_l10[[i]][(4*m+1):(5*m),1] ~ bin_l10[[i]][(4*m+1):(5*m),5]))
+  auc_mp_l10[[5]][i] <- auc(roc(bin_l10[[i]][(4*m+1):(5*m),1] ~ bin_l10[[i]][(4*m+1):(5*m),6]))
 }
 
 ## tau = 20
-auc_gnmm_20_l10 <- rep(NA, 500); auc_ann_20_l10 <- rep(NA, 500)
-auc_glmm_20_l10 <- rep(NA, 500); auc_mp_20_l10 <- rep(NA, 500)
-for (i in c(1:219,221:500)) {
-  if(i==196){  # gnmm doesn't converge
-    auc_ann_20_l10[i] <- auc(roc(bin_l10[[i]][(5*m+1):(6*m),1] ~ bin_l10[[i]][(5*m+1):(6*m),3]))
-    auc_glmm_20_l10[i] <- auc(roc(bin_l10[[i]][(5*m+1):(6*m),1] ~ bin_l10[[i]][(5*m+1):(6*m),4]))
-    auc_mp_20_l10[i] <- auc(roc(bin_l10[[i]][(5*m+1):(6*m),1] ~ bin_l10[[i]][(5*m+1):(6*m),5]))  
-  } else{
-    auc_gnmm_20_l10[i] <- auc(roc(bin_l10[[i]][(5*m+1):(6*m),1] ~ bin_l10[[i]][(5*m+1):(6*m),2]))
-    auc_ann_20_l10[i] <- auc(roc(bin_l10[[i]][(5*m+1):(6*m),1] ~ bin_l10[[i]][(5*m+1):(6*m),3]))
-    auc_glmm_20_l10[i] <- auc(roc(bin_l10[[i]][(5*m+1):(6*m),1] ~ bin_l10[[i]][(5*m+1):(6*m),4]))
-    auc_mp_20_l10[i] <- auc(roc(bin_l10[[i]][(5*m+1):(6*m),1] ~ bin_l10[[i]][(5*m+1):(6*m),5])) 
-  }
+auc_gnmm1_l10[[6]] <- rep(NA, 500); auc_gnmm2_l10[[6]] <- rep(NA, 500) 
+auc_ann_l10[[6]] <- rep(NA, 500); auc_glmm_l10[[6]] <- rep(NA, 500); auc_mp_l10[[6]] <- rep(NA, 500)
+for (i in sims) {
+  if(!is.na(bin_l10[[i]][(5*m+1):(6*m),2][1])) 
+    auc_gnmm1_l10[[6]][i] <- auc(roc(bin_l10[[i]][(5*m+1):(6*m),1] ~ bin_l10[[i]][(5*m+1):(6*m),2]))
+  if(!is.na(bin_l10[[i]][(5*m+1):(6*m),3][1])) 
+    auc_gnmm2_l10[[6]][i] <- auc(roc(bin_l10[[i]][(5*m+1):(6*m),1] ~ bin_l10[[i]][(5*m+1):(6*m),3]))
+  auc_ann_l10[[6]][i] <- auc(roc(bin_l10[[i]][(5*m+1):(6*m),1] ~ bin_l10[[i]][(5*m+1):(6*m),4]))
+  auc_glmm_l10[[6]][i] <- auc(roc(bin_l10[[i]][(5*m+1):(6*m),1] ~ bin_l10[[i]][(5*m+1):(6*m),5]))
+  auc_mp_l10[[6]][i] <- auc(roc(bin_l10[[i]][(5*m+1):(6*m),1] ~ bin_l10[[i]][(5*m+1):(6*m),6]))
 }
 
 # calculate average AUC
-AUC_mat_l10 <- matrix(NA, nrow = 5, ncol = 6)
+AUC_mat_l10 <- matrix(NA, nrow = 6, ncol = 6)
 AUC_mat_l10[1,] <- seq(0,20,4)
-AUC_mat_l10[2,] <- c(mean(auc_gnmm_0_l10, na.rm = TRUE), mean(auc_gnmm_4_l10, na.rm = TRUE),
-                     mean(auc_gnmm_8_l10, na.rm = TRUE), mean(auc_gnmm_12_l10, na.rm = TRUE),
-                     mean(auc_gnmm_16_l10, na.rm = TRUE), mean(auc_gnmm_20_l10, na.rm = TRUE))
-AUC_mat_l10[3,] <- c(mean(auc_ann_0_l10, na.rm = TRUE), mean(auc_ann_4_l10, na.rm = TRUE),
-                     mean(auc_ann_8_l10, na.rm = TRUE), mean(auc_ann_12_l10, na.rm = TRUE),
-                     mean(auc_ann_16_l10, na.rm = TRUE), mean(auc_ann_20_l10, na.rm = TRUE))
-AUC_mat_l10[4,] <- c(mean(auc_glmm_0_l10, na.rm = TRUE), mean(auc_glmm_4_l10, na.rm = TRUE),
-                     mean(auc_glmm_8_l10, na.rm = TRUE), mean(auc_glmm_12_l10, na.rm = TRUE),
-                     mean(auc_glmm_16_l10, na.rm = TRUE), mean(auc_glmm_20_l10, na.rm = TRUE))
-AUC_mat_l10[5,] <- c(mean(auc_mp_0_l10, na.rm = TRUE), mean(auc_mp_4_l10, na.rm = TRUE),
-                     mean(auc_mp_8_l10, na.rm = TRUE), mean(auc_mp_12_l10, na.rm = TRUE),
-                     mean(auc_mp_16_l10, na.rm = TRUE), mean(auc_mp_20_l10, na.rm = TRUE))
+AUC_mat_l10[2,] <- sapply(auc_gnmm1_l10, function(x) mean(x, na.rm = T))
+AUC_mat_l10[3,] <- sapply(auc_gnmm2_l10, function(x) mean(x, na.rm = T))
+AUC_mat_l10[4,] <- sapply(auc_ann_l10, function(x) mean(x, na.rm = T))
+AUC_mat_l10[5,] <- sapply(auc_glmm_l10, function(x) mean(x, na.rm = T))
+AUC_mat_l10[6,] <- sapply(auc_mp_l10, function(x) mean(x, na.rm = T))
+
 
 # AUC plot (bottom right panel of Figure 3)
-plot(AUC_mat_l10[1,], AUC_mat_l10[2,],type="l", ylim=c(0.5,1), xlab=expression(tau), ylab="AUC", main="Linear fixed effect, 10 Nodes", lwd = 2)
-lines(AUC_mat_l10[1,], AUC_mat_l10[3,], col="Blue",lty = 2, lwd = 2)
-lines(AUC_mat_l10[1,], AUC_mat_l10[4,], col="Red", lty = 3, lwd = 2)
-lines(AUC_mat_l10[1,], AUC_mat_l10[5,], col="green3", lty = 4, lwd = 2)
-legend("bottomright", c("GLMM","ANN","GNMM", "MP"), col=c("Red","Blue","Black", "green3"), lty=c(3,2,1,4), lwd=2, cex=1, bty = 'n')
+plot(AUC_mat_l10[1,], AUC_mat_l10[2,],type='l', ylim=c(0.5,1), xlab=expression(tau), ylab='AUC', 
+     main='Linear fixed effect, 10 Nodes', lwd = 2)
+lines(AUC_mat_l10[1,], AUC_mat_l10[3,], col='Gray', lty = 2, lwd = 2)
+lines(AUC_mat_l10[1,], AUC_mat_l10[4,], col='Blue', lty = 3, lwd = 2)
+lines(AUC_mat_l10[1,], AUC_mat_l10[5,], col='Red', lty = 4, lwd = 2)
+lines(AUC_mat_l10[1,], AUC_mat_l10[6,], col='green3', lty = 5, lwd = 2)
+legend('bottomright', c('GLMM','ANN','GNMM-1','GNMM-2','MP'), col=c('Red','Blue','Black','Gray','green3'), 
+       lty=c(4,3,1,2,5), lwd=2, cex=1, bty='n')
