@@ -7,6 +7,7 @@ The data used in this paper come from a small mobile health pilot study with 15 
 ## Code
 This folder contains all necessary files to replicate the results of the simulation studies in Section 4 and the analysis of the schizophrenia data in Section 5. The contents are:  
 * ./Data/feature_matrix_anomalies_trunc3.csv: data from pilot study on patients with schizophrenia
+* ./Data/SZ_data_dictionary.xlsx: data dictionary for feature_matrix_anomalies_trunc3.csv
 * .R/Network_Functions.R: main functions for fitting GNMM model
 * .R/Analysis_of_SZ_data.Rmd: R Markdown file to replicate Table 1 and Figure 4, requires data file and Network_Functions.R
 * .R/AUC_LinearFixedEffect_5nodes.R: script to run simulation with binary outcome, linear fixed effect, and 5 hidden nodes and reproduce bottom left panel in Figure 3
