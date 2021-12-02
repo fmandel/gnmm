@@ -100,15 +100,32 @@ for (i in 1:5) {
   mspe.ann[i] <- mean((Y.test-pred3)^2)
 }
 
-# run GLMM
+# run GLMM with main effects
 p <- ncol(X.train)
-glmm.out <- glmer(Y.train ~ X.train + (1|lab.train), family = 'gaussian')
-s1 <- summary(glmm.out)
-glmm.coef <- matrix(s1$coefficients[2:(p+1),1])
-fef.pred <- X.test%*%glmm.coef + rep(matrix(s1$coefficients[1,1]),m)     ## fixed effect prediction
-glm.ref <- as.vector(c(ranef(glmm.out)$lab.train))
-glm.ref <- unlist(unname(glm.ref))
-pred4 <- fef.pred + glm.ref             ## fixed effect + random effect prediction
+glmm.main <- glmer(Y.train ~ X.train + (1|lab.train), family = 'gaussian')
+coef.main <- matrix(summary(glmm.main)$coefficients[2:(p+1),1])
+fef.main <- X.test%*%coef.main + rep(matrix(summary(glmm.main)$coefficients[1,1]),m)     # fixed effect
+ref.main <- unlist(unname(as.vector(c(ranef(glmm.main)$lab.train))))                     # random effect
+pred4 <- fef.main + ref.main
+
+# run GLMM with main effects + 3 interaction terms
+glmm.3int <- glmer(Y.train ~ X.train + X.train[,4]*X.train[,15] + X.train[,3]*X.train[,15] + X.train[,5]*X.train[,13] + 
+                     (1|lab.train), family = 'gaussian')
+coef.3int <- matrix(summary(glmm.3int)$coefficients[2:(p+3+1),1])
+Xtest.3int <- cbind(X.test, X.test[,4]*X.test[,15], X.test[,3]*X.test[,15], X.test[,5]*X.test[,13])        # matrix with interactions
+fef.3int <- Xtest.3int%*%coef.3int + rep(matrix(summary(glmm.3int)$coefficients[1,1]),m)      # fixed effect
+ref.3int <- unlist(unname(as.vector(c(ranef(glmm.3int)$lab.train))))                          # random effect
+pred5 <- fef.3int + ref.3int
+
+# run GLMM with main effects + 5 interaction terms
+glmm.5int <- glmer(Y.train ~ X.train + X.train[,4]*X.train[,15] + X.train[,3]*X.train[,15] + X.train[,5]*X.train[,13] + 
+                     X.train[,7]*X.train[,13] + X.train[,5]*X.train[,12] + (1|lab.train), family = 'gaussian')
+coef.5int <- matrix(summary(glmm.5int)$coefficients[2:(p+5+1),1])
+Xtest.5int <- cbind(X.test, X.test[,4]*X.test[,15], X.test[,3]*X.test[,15], X.test[,5]*X.test[,13], 
+                    X.test[,7]*X.test[,13], X.test[,5]*X.test[,12])           # matrix with interactions
+fef.5int <- Xtest.5int%*%coef.5int + rep(matrix(summary(glmm.5int)$coefficients[1,1]),m)      # fixed effect
+ref.5int <- unlist(unname(as.vector(c(ranef(glmm.5int)$lab.train))))                          # random effect
+pred6 <- fef.5int + ref.5int
 
 # run MP
 # 4th iteration does not converge so model is run 6 times and 4th run is dropped
@@ -129,24 +146,30 @@ for (i in 1:6) {
   m5 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 0.001,
                  nodes1 = hidnodes1, nodes2 = NULL, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE,
                  weights = m5$weights, biases = m5$biases)
-  pred5 <- gnmm.predict(new_data = X.mp.test, id = lab.test, gnmm.fit = m5)
-  mspe.mp[i] <- mean((Y.test-pred5)^2) 
+  pred7 <- gnmm.predict(new_data = X.mp.test, id = lab.test, gnmm.fit = m5)
+  mspe.mp[i] <- mean((Y.test-pred7)^2) 
 }
 ```
 
 ### Compare MSPE from 4 models  
 ```{r}
 # 1-layer GNMM
-mean(mspe.gnmm1)    # 0.428   
+mean(mspe.gnmm1)              # 0.428   
 
 # 2-layer GNMM
-mean(mspe.gnmm2)    # 0.422  
+mean(mspe.gnmm2)              # 0.422  
 
 # ANN
-mean(mspe.ann)     # 1.076
+mean(mspe.ann)                # 1.076
  
-# GLMM
-mean((Y.test-pred4)^2)    # 0.546
+# GLMM (main effects)
+mean((Y.test-pred4)^2)        # 0.546
+
+# GLMM (3 interactions)
+mean((Y.test-pred5)^2)        # 0.609
+
+# GLMM (5 interactions)
+mean((Y.test-pred6)^2)        # 0.588
 
 # MP
 mean(mspe.mp, na.rm = TRUE)   # 1.218
@@ -248,15 +271,32 @@ for (i in 1:6) {
   mspe.ann[i] <- mean((Y.test-pred3)^2)
 }
 
-# Run GLMM
+# Run GLMM with main effects
 p <- ncol(X.train)
-glmm.out <- glmer(Y.train ~ X.train + (1|lab.train), family = 'gaussian')
-s1 <- summary(glmm.out)
-glmm.coef <- matrix(s1$coefficients[2:(p+1),1])
-fef.pred <- X.test%*%glmm.coef + rep(matrix(s1$coefficients[1,1]),m)     ## fixed effect prediction
-glm.ref <- as.vector(c(ranef(glmm.out)$lab.train))
-glm.ref <- unlist(unname(glm.ref))
-pred4 <- fef.pred + glm.ref             ## fixed effect + random effect prediction
+glmm.main <- glmer(Y.train ~ X.train + (1|lab.train), family = 'gaussian')
+coef.main <- matrix(summary(glmm.main)$coefficients[2:(p+1),1])
+fef.main <- X.test%*%coef.main + rep(matrix(summary(glmm.main)$coefficients[1,1]),m)     # fixed effect
+ref.main <- unlist(unname(as.vector(c(ranef(glmm.main)$lab.train))))                     # random effect
+pred4 <- fef.main + ref.main
+
+# Run GLMM with main effects + 3 interaction terms
+glmm.3int <- glmer(Y.train ~ X.train + X.train[,2]*X.train[,5] + X.train[,5]*X.train[,13] + X.train[,5]*X.train[,11] + 
+                     (1|lab.train), family = 'gaussian')
+coef.3int <- matrix(summary(glmm.3int)$coefficients[2:(p+3+1),1])
+Xtest.3int <- cbind(X.test, X.test[,2]*X.test[,5], X.test[,5]*X.test[,13], X.test[,5]*X.test[,11])        # matrix with interactions
+fef.3int <- Xtest.3int%*%coef.3int + rep(matrix(summary(glmm.3int)$coefficients[1,1]),m)         # fixed effect
+ref.3int <- unlist(unname(as.vector(c(ranef(glmm.3int)$lab.train))))                             # random effect
+pred5 <- fef.3int + ref.3int
+
+# Run GLMM with main effects + 5 interaction terms
+glmm.5int <- glmer(Y.train ~ X.train + X.train[,2]*X.train[,5] + X.train[,5]*X.train[,13] + X.train[,5]*X.train[,11] + 
+                     X.train[,2]*X.train[,4] + X.train[,3]*X.train[,12] + (1|lab.train), family = 'gaussian')
+coef.5int <- matrix(summary(glmm.5int)$coefficients[2:(p+5+1),1])
+Xtest.5int <- cbind(X.test, X.test[,2]*X.test[,5], X.test[,5]*X.test[,13], X.test[,5]*X.test[,11], 
+                    X.test[,2]*X.test[,4], X.test[,3]*X.test[,12])            # matrix with interactions
+fef.5int <- Xtest.5int%*%coef.5int + rep(matrix(summary(glmm.5int)$coefficients[1,1]),m)     # fixed effect
+ref.5int <- unlist(unname(as.vector(c(ranef(glmm.5int)$lab.train))))                         # random effect
+pred6 <- fef.5int + ref.5int
 
 # Run MP
 # 4th iteration does not converge so model is run 6 times and 4th run is dropped
@@ -277,8 +317,8 @@ for(i in 1:6) {
   m5 <- gnmm.sgd(formula = Y.train ~ X.mp.train + (1|lab.train), family = 'gaussian', penalization = 0.001,
                  nodes1 = hidnodes1, nodes2 = NULL, step_size = 0.05, act_fun = 'relu', nepochs = 10, incl_ranef = FALSE,
                  weights = m5$weights, biases = m5$biases)
-  pred5 <- gnmm.predict(new_data = X.mp.test, id = lab.test, gnmm.fit = m5)
-  mspe.mp[i] <- mean((Y.test-pred5)^2)
+  pred7 <- gnmm.predict(new_data = X.mp.test, id = lab.test, gnmm.fit = m5)
+  mspe.mp[i] <- mean((Y.test-pred7)^2)
 }
 ```
 
@@ -293,8 +333,14 @@ mean(mspe.gnmm2)    # 0.061
 # ANN
 mean(mspe.ann, na.rm = TRUE)      # 0.413
 
-# GLMM
+# GLMM (main effects)
 mean((Y.test-pred4)^2)    # 0.068
+
+# GLMM (3 interactions)
+mean((Y.test-pred5)^2)    # 0.098
+
+# GLMM (5 interactions)
+mean((Y.test-pred6)^2)    # 0.116
 
 # MP
 mean(mspe.mp, na.rm=TRUE)    # 0.518
